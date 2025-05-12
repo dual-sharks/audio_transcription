@@ -172,3 +172,37 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Whisper model files
+*.pt
+*.bin
+models/
+
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.m4a
+
+# Logs
+*.log
+
+# Docker
+.docker/
+
+# System
+.DS_Store
+Thumbs.db
