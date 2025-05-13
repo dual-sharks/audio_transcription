@@ -7,6 +7,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Optional
+from app import cloudinary_handler
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -32,6 +33,15 @@ redis_client = redis.Redis(
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
+
+@app.get("/cloudinary/videos")
+async def pull_cloudinary_videos():
+    try:
+        videos = cloudinary_handler.get_cloudinary_videos()
+    except Exception as e:
+        raise HTTPException()
+
+    return {"videos": videos}
 
 @app.post("/transcribe/{filename}")
 async def transcribe_audio(filename: str, background_tasks: BackgroundTasks):
