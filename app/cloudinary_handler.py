@@ -26,8 +26,8 @@ def set_cloud_config() -> None:
 
 
 def _raw_fetch(max_results: int):
-    resp = cloudinary.api.resources(resource_type="video", max_results=max_results)
-    print("Done with api pull")
+    resp = cloudinary.api.resources(resource_type="video",
+                                    max_results=max_results)
     return [
         Asset(
             public_id=r["public_id"],
@@ -39,13 +39,13 @@ def _raw_fetch(max_results: int):
     ]
 
 
-def pull_cloudinary_videos(max_results: int = 10, _retry: bool = False):
-    print("Trying to raw pull videos")
+def pull_cloudinary_videos(max_results: int = 10, _retry: bool = True):
+
     try:
-        return _raw_fetch(max_results)
-    except CloudinaryError as e:
+        results = _raw_fetch(max_results)
+        return results
+    except Exception as e:
         set_cloud_config()
-        _retry = True
-    if _retry:
-        return pull_cloudinary_videos(max_results, _retry=False)
+        if _retry:
+            return pull_cloudinary_videos(max_results, _retry=False)
 

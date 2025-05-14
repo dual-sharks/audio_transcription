@@ -7,7 +7,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Optional
-from app import cloudinary_handler
+import app.cloudinary_handler as cloudinary_handler
 from app.asset import Asset
 
 app = FastAPI(title="Audio Transcription API")
@@ -36,15 +36,13 @@ async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
 
 @app.get("/cloudinary/videos")
-async def pull_cloudinary_videos():
+async def pull_videos():
     try:
-        print("Tring to pull cloudinary videos")
-        videos = cloudinary_handler.pull_videos_cloudinary()
+        videos = cloudinary_handler.pull_cloudinary_videos()
         if not videos:
             raise HTTPException(status_code=404, detail="Video file(s) not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
     return {"videos": videos}
 
 @app.post("/transcribe/{filename}")
