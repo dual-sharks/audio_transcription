@@ -4,6 +4,8 @@ from dotenv import load_dotenv, find_dotenv
 import os
 from cloudinary.exceptions import Error as CloudinaryError
 from app.asset import Asset
+import requests
+from pathlib import Path
 
 
 def get_cloud_keys() -> tuple[str, str, str]:
@@ -28,24 +30,51 @@ def set_cloud_config() -> None:
 def _raw_fetch(max_results: int):
     resp = cloudinary.api.resources(resource_type="video",
                                     max_results=max_results)
-    return [
-        Asset(
-            public_id=r["public_id"],
-            asset_id=r["asset_id"],
-            url=r["url"],
-            secure_url=r["secure_url"],
-        )
-        for r in resp["resources"]
-    ]
+    list = []
+
+    for resource in resp["resources"]:
+
+        formatted_url = change_mp4_format(resource["secure_url"])
+
+        list.append(Asset(public_id=resource["public_id"],
+                          asset_id=resource["asset_id"],
+                          secure_url=formatted_url))
+    return list
+
+def change_mp4_format(url: str) -> str:
+    lower = url.lower()
+    if lower.endswith(".mp4"):
+        return url[:-4] + ".mp3"
+    return url
 
 
-def pull_cloudinary_videos(max_results: int = 10, _retry: bool = True):
-
+def pull_cloud_vid_links(max_results: int = 10, _retry: bool = True):
     try:
+        print("Raw Fetch")
         results = _raw_fetch(max_results)
         return results
     except Exception as e:
         set_cloud_config()
         if _retry:
-            return pull_cloudinary_videos(max_results, _retry=False)
+            return pull_cloud_vid_links(max_results, _retry=False)
+
+def download_mp3(asset: Asset):
+    # 1. Fetch
+    resp = requests.get(asset.secure_url)
+    resp.raise_for_status()
+
+    # 2. Ensure the directory exists
+    audio_dir = Path("app/static/audio")
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    # 3. Build a filename
+    filename = f"{asset.asset_id}.mp3"
+    file_path = audio_dir / filename
+
+    print(f"Downloading {filename}")
+    # 4. Write in binary mode
+    with open(file_path, "wb") as f:
+        f.write(resp.content)
+
+    return file_path  # maybe return it so the caller knows where it went
 

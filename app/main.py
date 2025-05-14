@@ -35,14 +35,17 @@ redis_client = redis.Redis(
 async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
 
-@app.get("/cloudinary/videos")
+@app.get("/cloudinary/videos/refresh")
 async def pull_videos():
     try:
-        videos = cloudinary_handler.pull_cloudinary_videos()
+        videos = cloudinary_handler.pull_cloud_vid_links()
         if not videos:
             raise HTTPException(status_code=404, detail="Video file(s) not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    for asset in videos:
+        cloudinary_handler.download_mp3(asset)
     return {"videos": videos}
 
 @app.post("/transcribe/{filename}")
