@@ -2,6 +2,7 @@
 name = "audio_transcription"
 version = "0.1.0"
 description = "Audio transcription service using Whisper"
+package-mode = false
 authors = ["Your Name <your.email@example.com>"]
 readme = "README.md"
 
@@ -11,6 +12,11 @@ fastapi = "^0.109.2"
 uvicorn = "^0.27.1"
 redis = "^5.0.1"
 openai-whisper = "^20240930"
+jupyter = "^1.1.1"
+requests = "^2.32.3"
+cloudinary = "^1.44.0"
+python-dotenv = "^1.1.0"
+aioredis = "^2.0.1"
 
 
 [tool.poetry.group.dev.dependencies]

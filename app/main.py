@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import redis
 import json
 import os
-import uuid
 from pathlib import Path
 from typing import Optional
+import app.cloudinary_handler as cloudinary_handler
+from app.redis_handler import Redis
+
+
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -23,36 +25,42 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Initialize Redis connection
-redis_client = redis.Redis(
-    host=os.getenv('REDIS_HOST', 'redis'),
-    port=int(os.getenv('REDIS_PORT', 6379)),
-    decode_responses=True
-)
+redis_client = Redis()
+
+# Store Asset Dicts
+assets_dict = {}
 
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
 
-@app.post("/transcribe/{filename}")
-async def transcribe_audio(filename: str, background_tasks: BackgroundTasks):
+@app.get("/cloudinary/videos/refresh")
+async def pull_videos():
+    try:
+        assets = cloudinary_handler.pull_audio_details()
+        if not assets:
+            raise HTTPException(status_code=404, detail="Video file(s) not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"assets": assets}
+
+@app.post("/cloudinary/videos/download/{assfet}")
+async def download_audio(asset: dict):
+    if not asset["audio_path"].exists():
+        cloudinary_handler.download_audio(asset)
+
+    return {"status": "processing"}
+
+@app.post("/transcribe/{asset}")
+async def transcribe_audio(asset: dict, background_tasks: BackgroundTasks):
     try:
         # Check if file exists
-        audio_path = Path("app/static/audio") / filename
-        if not audio_path.exists():
+        if not asset["audio_path"].exists():
             raise HTTPException(status_code=404, detail="Audio file not found")
-        
-        # Generate request ID
-        request_id = str(uuid.uuid4())
-        
-        # Create transcription request
-        request = {
-            "request_id": request_id,
-            "audio_path": str(audio_path)
-        }
-        
-        # Send request to Whisper service
-        redis_client.rpush('transcription_requests', json.dumps(request))
-        
+
+        request_id = redis_client.enqueue(asset)
+
         return {
             "request_id": request_id,
             "status": "processing",
@@ -65,7 +73,7 @@ async def transcribe_audio(filename: str, background_tasks: BackgroundTasks):
 async def get_transcription_status(request_id: str):
     try:
         # Check if result exists
-        result = redis_client.get(f"transcription_result:{request_id}")
+        result = redis_client.get_status(request_id)
         if result is None:
             return {
                 "request_id": request_id,
