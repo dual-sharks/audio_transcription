@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Optional
 import app.cloudinary_handler as cloudinary_handler
-from app.redis_handler import Redis
+from app.services.redis_handler import Redis
 
 
 
