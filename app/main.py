@@ -5,10 +5,7 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
-import app.cloudinary_handler as cloudinary_handler
-from app.services.redis_handler import Redis
-
-
+from app.api.handlers.cloudinary import CloudinaryHandler
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -24,64 +21,77 @@ app.add_middleware(
 # Mount static files directory
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Initialize Redis connection
-redis_client = Redis()
-
-# Store Asset Dicts
-assets_dict = {}
+# Initialize Cloudinary handler
+cloudinary_handler = CloudinaryHandler.from_env()
 
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
 
-@app.get("/cloudinary/videos/refresh")
-async def pull_videos():
+@app.get("/cloudinary/videos")
+async def list_videos():
+    """List all available videos from Cloudinary."""
     try:
         assets = cloudinary_handler.pull_audio_details()
         if not assets:
-            raise HTTPException(status_code=404, detail="Video file(s) not found")
+            raise HTTPException(status_code=404, detail="No video files found")
+        return {"assets": assets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"assets": assets}
-
-@app.post("/cloudinary/videos/download/{assfet}")
-async def download_audio(asset: dict):
-    if not asset["audio_path"].exists():
-        cloudinary_handler.download_audio(asset)
-
-    return {"status": "processing"}
-
-@app.post("/transcribe/{asset}")
-async def transcribe_audio(asset: dict, background_tasks: BackgroundTasks):
+@app.post("/cloudinary/videos/{asset_id}/download")
+async def download_audio(asset_id: str):
+    """Download a specific video by its asset ID."""
     try:
-        # Check if file exists
-        if not asset["audio_path"].exists():
-            raise HTTPException(status_code=404, detail="Audio file not found")
-
-        request_id = redis_client.enqueue(asset)
-
-        return {
-            "request_id": request_id,
-            "status": "processing",
-            "message": "Transcription request received"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/transcription/{request_id}")
-async def get_transcription_status(request_id: str):
-    try:
-        # Check if result exists
-        result = redis_client.get_status(request_id)
-        if result is None:
-            return {
-                "request_id": request_id,
-                "status": "processing",
-                "message": "Transcription in progress"
-            }
+        # First get all assets
+        assets = cloudinary_handler.pull_audio_details()
+        if asset_id not in assets:
+            raise HTTPException(status_code=404, detail="Asset not found")
         
-        return json.loads(result)
+        asset = assets[asset_id]
+        if not asset["audio_path"].exists():
+            success = cloudinary_handler.download_audio(asset)
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to download audio")
+        
+        return {
+            "status": "success",
+            "message": "Audio downloaded successfully",
+            "file_path": str(asset["audio_path"])
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/transcribe/{asset_id}")
+async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
+    """
+    Transcribe a specific audio file by its asset ID.
+    For now, just verifies the file exists.
+    """
+    try:
+        # First get all assets
+        assets = cloudinary_handler.pull_audio_details()
+        if asset_id not in assets:
+            raise HTTPException(status_code=404, detail="Asset not found")
+        
+        asset = assets[asset_id]
+        if not asset["audio_path"].exists():
+            raise HTTPException(
+                status_code=400, 
+                detail="Audio file not downloaded. Please download first."
+            )
+        
+        # TODO: Implement actual transcription
+        return {
+            "status": "not_implemented",
+            "message": "Transcription functionality coming soon",
+            "asset_id": asset_id,
+            "file_path": str(asset["audio_path"])
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
