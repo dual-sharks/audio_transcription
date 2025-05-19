@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 from typing import Optional
 import app.cloudinary_handler as cloudinary_handler
-from app.asset import Asset
+from app.redis_handler import Redis
+
+
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -23,7 +25,10 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Initialize Redis connection
-redis_client = app.redis_handler.Redis()
+redis_client = Redis()
+
+# Store Asset Dicts
+assets_dict = {}
 
 @app.get("/")
 async def root():
@@ -32,23 +37,28 @@ async def root():
 @app.get("/cloudinary/videos/refresh")
 async def pull_videos():
     try:
-        videos = cloudinary_handler.pull_cloud_vid_links()
-        if not videos:
+        assets = cloudinary_handler.pull_audio_details()
+        if not assets:
             raise HTTPException(status_code=404, detail="Video file(s) not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    for asset in videos:
-        cloudinary_handler.download_mp3(asset)
-    return {"videos": videos}
+    return {"assets": assets}
 
-@app.post("/transcribe/{filename}")
-async def transcribe_audio(asset: Asset, background_tasks: BackgroundTasks):
+@app.post("/cloudinary/videos/download/{assfet}")
+async def download_audio(asset: dict):
+    if not asset["audio_path"].exists():
+        cloudinary_handler.download_audio(asset)
+
+    return {"status": "processing"}
+
+@app.post("/transcribe/{asset}")
+async def transcribe_audio(asset: dict, background_tasks: BackgroundTasks):
     try:
         # Check if file exists
-        if not asset.mp3_path.exists():
+        if not asset["audio_path"].exists():
             raise HTTPException(status_code=404, detail="Audio file not found")
-        
+
         request_id = redis_client.enqueue(asset)
 
         return {

@@ -1,6 +1,5 @@
 import redis
 import os
-from asset import Asset
 import uuid
 import json
 
@@ -12,20 +11,16 @@ class Redis():
             decode_responses=True
         )
 
-    def enqueue(self, asset: Asset):
+    def enqueue(self, asset: dict):
         try:
             # Generate request ID
             request_id = str(uuid.uuid4())
 
             # Create transcription request
-            request = {
-                "request_id": request_id,
-                "audio_path": asset.mp3_path,
-                "asset_id": asset.asset_id,
-            }
+            asset['request_id'] = request_id
 
             # Send request to Whisper service
-            self.redis_client.rpush('transcription_requests', json.dumps(request))
+            self.redis_client.rpush('transcription_requests', json.dumps(asset))
         except Exception as e:
             print(e)
 
@@ -33,7 +28,7 @@ class Redis():
 
     def dequeue(self):
         try:
-            response = self.redis_client.lpop('transcription_requests')
+            response = self.redis_client.blpop('transcription_requests')
         except Exception as e:
             print(e)
         if response is None:

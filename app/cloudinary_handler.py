@@ -8,8 +8,6 @@ from cloudinary.exceptions import Error as CloudinaryError
 from dotenv import load_dotenv, find_dotenv
 import requests
 
-from app.asset import Asset
-
 
 def get_cloud_keys() -> tuple[str, str, str]:
     """
@@ -39,7 +37,7 @@ def set_cloud_config() -> None:
     )
 
 
-def _raw_fetch(max_results: int) -> List[Asset]:
+def _fetch_audio_details(max_results: int) -> dict:
     """
     Fetches video resources from Cloudinary and converts their URLs to MP3 format.
 
@@ -50,20 +48,26 @@ def _raw_fetch(max_results: int) -> List[Asset]:
         A list of Asset objects with modified MP3 URLs.
     """
     resp = cloudinary.api.resources(resource_type="video", max_results=max_results)
-    assets: List[Asset] = []
+    asset_dict = {}
+
+    # Ensure the audio directory exists
+    audio_dir = Path("app/static/audio")
+    audio_dir.mkdir(parents=True, exist_ok=True)
 
     for resource in resp["resources"]:
+        # Define output file path
+        filename = f"{resource["asset_id"]}.mp3"
+        file_path = audio_dir / filename
+
         formatted_url = change_mp4_format(resource["secure_url"])
-        assets.append(
-            Asset(
-                public_id=resource["public_id"],
-                asset_id=resource["asset_id"],
-                secure_url=formatted_url,
-                mp3_path=None,
-                captions=None
-            )
-        )
-    return assets
+        asset_dict[resource["asset_id"]] = {
+            "public_id": resource["public_id"],
+            "asset_id": resource["asset_id"],
+            "secure_url": formatted_url,
+            "audio_path": file_path,
+            "captions": None
+        }
+    return asset_dict
 
 
 def change_mp4_format(url: str) -> str:
@@ -82,7 +86,7 @@ def change_mp4_format(url: str) -> str:
     return url
 
 
-def pull_cloud_vid_links(max_results: int = 10, _retry: bool = True) -> Optional[List[Asset]]:
+def pull_audio_details(max_results: int = 10, _retry: bool = True) -> dict:
     """
     Attempts to fetch a list of video links from Cloudinary and format them as MP3 assets.
 
@@ -95,16 +99,16 @@ def pull_cloud_vid_links(max_results: int = 10, _retry: bool = True) -> Optional
     """
     try:
         print("Raw Fetch")
-        return _raw_fetch(max_results)
+        return _fetch_audio_details(max_results)
     except Exception as e:
         print(f"Error occurred: {e}. Retrying with config setup...")
         set_cloud_config()
         if _retry:
-            return pull_cloud_vid_links(max_results, _retry=False)
+            return pull_audio_details(max_results, _retry=False)
         return None
 
 
-def download_mp3(asset: Asset) -> Path:
+def download_audio(asset: dict) -> Path:
     """
     Downloads an MP3 file from a secure URL and saves it to the local audio directory.
 
@@ -115,23 +119,12 @@ def download_mp3(asset: Asset) -> Path:
         The file path to the downloaded MP3 file.
     """
     # Fetch the file
-    resp = requests.get(asset.secure_url)
+    resp = requests.get(asset["secure_url"])
     resp.raise_for_status()
 
-    # Ensure the audio directory exists
-    audio_dir = Path("app/static/audio")
-    audio_dir.mkdir(parents=True, exist_ok=True)
-
-    # Define output file path
-    filename = f"{asset.asset_id}.mp3"
-    file_path = audio_dir / filename
-
-    print(f"Downloading {filename}")
+    print(f"Downloading {asset["asset_id"]}")
     # Write the file to disk
-    with open(file_path, "wb") as f:
+    with open(asset["audio_path"], "wb") as f:
         f.write(resp.content)
 
-    # link mp3 path to asset object
-    asset.mp3_path = file_path
-
-    return file_path
+    return True

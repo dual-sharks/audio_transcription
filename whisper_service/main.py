@@ -3,19 +3,18 @@ import redis
 import json
 import os
 from pathlib import Path
-
-# Initialize Redis connection
-redis_client = redis.Redis(
-    host=os.getenv('REDIS_HOST', 'redis'),
-    port=int(os.getenv('REDIS_PORT', 6379)),
-    decode_responses=True
-)
+import app.main
+import torch
 
 # Initialize Whisper model
-model = whisper.load_model("base")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+model = whisper.load_model("base", device=DEVICE)
+
+
 
 def process_transcription(audio_path: str) -> dict:
     """Process audio file with Whisper model"""
+
     try:
         result = model.transcribe(audio_path)
         return {
@@ -31,10 +30,13 @@ def process_transcription(audio_path: str) -> dict:
 
 def main():
     print("Whisper service started. Waiting for transcription requests...")
-    
+
+    # Initialize Redis connection
+    redis_client = app.main.redis_client
+
     while True:
         # Listen for new transcription requests
-        _, request_data = redis_client.blpop('transcription_requests')
+        request_data = redis_client.dequeue
         request = json.loads(request_data)
         
         # Process the request
@@ -45,6 +47,11 @@ def main():
             f"transcription_result:{request['request_id']}",
             json.dumps(result)
         )
+
+        if result:
+            print(result["text"])
+
+
 
 if __name__ == "__main__":
     main() 
