@@ -3,12 +3,12 @@ import redis
 import json
 import os
 from pathlib import Path
-import app.main
 import torch
+from app.services.redis_handler import Redis
 
 # Initialize Whisper model
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-model = whisper.load_model("base", device=DEVICE)
+#DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+model = whisper.load_model("base")
 
 
 
@@ -32,7 +32,7 @@ def main():
     print("Whisper service started. Waiting for transcription requests...")
 
     # Initialize Redis connection
-    redis_client = app.main.redis_client
+    redis_client = Redis()
 
     while True:
         # Listen for new transcription requests

@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
-from app.api.handlers.cloudinary import CloudinaryHandler
+from api.handlers.cloudinary import CloudinaryHandler
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -19,7 +19,9 @@ app.add_middleware(
 )
 
 # Mount static files directory
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+BASE_DIR = Path(__file__).resolve().parent          # …/app
+STATIC_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Initialize Cloudinary handler
 cloudinary_handler = CloudinaryHandler.from_env()
@@ -34,7 +36,7 @@ async def list_videos():
     try:
         assets = cloudinary_handler.pull_audio_details()
         if not assets:
-            raise HTTPException(status_code=404, detail="No video files found")
+            raise HTTPException(status_code=404, detail="No audio files found")
         return {"assets": assets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
