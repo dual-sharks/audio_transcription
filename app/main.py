@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from api.handlers.cloudinary import CloudinaryHandler
+from services.redis_enqueue_handler import RedisEnqueue
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -25,6 +26,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Initialize Cloudinary handler
 cloudinary_handler = CloudinaryHandler.from_env()
+
+# Initialize Redis handler
+redis_client = RedisEnqueue()
 
 @app.get("/")
 async def root():
@@ -86,8 +90,9 @@ async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
             )
         
         # TODO: Implement actual transcription
+        redis_client.enqueue(asset)
         return {
-            "status": "not_implemented",
+            "status": "asset queued",
             "message": "Transcription functionality coming soon",
             "asset_id": asset_id,
             "file_path": str(asset["audio_path"])

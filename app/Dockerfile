@@ -1,21 +1,16 @@
 FROM python:3.11-slim
 
+# 1. copy the dependency files into the WORKDIR -----------------------
 WORKDIR /app
-
-# Install Poetry
-RUN pip install poetry
-
-# Copy poetry configuration files
 COPY pyproject.toml poetry.lock ./
 
-# Configure poetry to not create a virtual environment
+# 3. Poetry & deps ----------------------------------------------------
+RUN pip install --no-cache-dir poetry
 RUN poetry config virtualenvs.create false
-
-# Install dependencies
 RUN poetry install --without dev --no-interaction --no-ansi
 
 # Copy application code
-COPY . .
+COPY app/ .
 
 # Expose the port the app runs on
 EXPOSE 8000

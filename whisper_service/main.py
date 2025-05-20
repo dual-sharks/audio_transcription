@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import torch
-from app.services.redis_handler import Redis
+from services.redis_dequeue_handler import RedisDequeue
 
 # Initialize Whisper model
 #DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -32,24 +32,22 @@ def main():
     print("Whisper service started. Waiting for transcription requests...")
 
     # Initialize Redis connection
-    redis_client = Redis()
+    redis_client = RedisDequeue("localhost")
 
     while True:
         # Listen for new transcription requests
-        request_data = redis_client.dequeue
-        request = json.loads(request_data)
-        
-        # Process the request
-        result = process_transcription(request['audio_path'])
+        request_data = redis_client.dequeue()
+        if request_data:
+            print(request_data)
+            # Process the request
+            result = process_transcription(request_data['audio_path'])
+
         
         # Store the result
         redis_client.set(
-            f"transcription_result:{request['request_id']}",
+            f"transcription_result:{request_data['request_id']}",
             json.dumps(result)
         )
-
-        if result:
-            print(result["text"])
 
 
 
