@@ -2,6 +2,7 @@ import redis
 import os
 import uuid
 import json
+from pathlib import Path
 
 class RedisDequeue():
     def __init__(self, host="redis", port=6379):
@@ -19,7 +20,11 @@ class RedisDequeue():
             print(e)
         if not json_response["request_id"]:
             return None
+
         return json_response
 
-    def get_status(self, request_id):
-        return self.redis_client.get(f"transcription_result:{request_id}")
+    def set_status(self, request_id, result):
+        self.redis_client.set(
+            f"transcription_result:{request_id}",
+            result
+        )

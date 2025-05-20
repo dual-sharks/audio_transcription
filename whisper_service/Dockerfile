@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 # 1. copy the dependency files into the WORKDIR -----------------------
-WORKDIR /whisper_service
+WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 
 # 2. system deps ------------------------------------------------------

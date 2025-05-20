@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import json
 import os
-from pathlib import Path
 from typing import Optional
 from api.handlers.cloudinary import CloudinaryHandler
 from services.redis_enqueue_handler import RedisEnqueue
+from pathlib import Path
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -28,7 +28,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 cloudinary_handler = CloudinaryHandler.from_env()
 
 # Initialize Redis handler
-redis_client = RedisEnqueue()
+redis_client = RedisEnqueue('localhost')
 
 @app.get("/")
 async def root():
@@ -53,13 +53,13 @@ async def download_audio(asset_id: str):
         assets = cloudinary_handler.pull_audio_details()
         if asset_id not in assets:
             raise HTTPException(status_code=404, detail="Asset not found")
-        
+
         asset = assets[asset_id]
         if not asset["audio_path"].exists():
             success = cloudinary_handler.download_audio(asset)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to download audio")
-        
+
         return {
             "status": "success",
             "message": "Audio downloaded successfully",
@@ -88,17 +88,39 @@ async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
                 status_code=400, 
                 detail="Audio file not downloaded. Please download first."
             )
-        
         # TODO: Implement actual transcription
-        redis_client.enqueue(asset)
+        request_id = redis_client.enqueue(asset)
         return {
             "status": "asset queued",
             "message": "Transcription functionality coming soon",
-            "asset_id": asset_id,
-            "file_path": str(asset["audio_path"])
+            "request_id": request_id,
+            "file_path": asset["audio_path"]
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/transcription/{request_id}")
+async def get_transcription_status(request_id: str):
+    try:
+        # Check if result exists
+        result = redis_client.get_status(request_id)
+        if result is None:
+            return {
+                "request_id": request_id,
+                "status": "Not Processing",
+                "message": "Transcription not in progress"
+            }
+
+        """if result_json == "processing":
+            return {
+                "request_id": request_id,
+                "status": "processing",
+                "message": "Transcription in progress"
+            }"""
+
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

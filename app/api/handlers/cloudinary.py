@@ -63,8 +63,8 @@ class CloudinaryHandler:
         try:
             resp = cloudinary.api.resources(resource_type="video", max_results=max_results)
             asset_dict = {}
-            
-            audio_dir = Path("app/static/audio")
+
+            audio_dir = Path("static/audio")
             audio_dir.mkdir(parents=True, exist_ok=True)
             
             for resource in resp["resources"]:
@@ -78,7 +78,8 @@ class CloudinaryHandler:
                     "asset_id": resource["asset_id"],
                     "secure_url": formatted_url,
                     "audio_path": file_path,
-                    "captions": None
+                    "captions": None,
+                    "status": None
                 }
                 
             return asset_dict
@@ -104,8 +105,14 @@ class CloudinaryHandler:
             with open(asset["audio_path"], "wb") as f:
                 f.write(resp.content)
 
-            return True
+            asset["status"] = "Downloaded"
+            return {
+            "status": "Success",
+            "message": "Audio downloaded successfully",
+            "file_path": str(asset["audio_path"])
+        }
         except (requests.RequestException, IOError) as e:
+            asset["status"] = None
             print(f"Error downloading audio: {e}")
             return False
 

@@ -7,8 +7,8 @@ import torch
 from services.redis_dequeue_handler import RedisDequeue
 
 # Initialize Whisper model
-#DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-model = whisper.load_model("base")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+model = whisper.load_model("base", device=DEVICE)
 
 
 
@@ -38,18 +38,20 @@ def main():
         # Listen for new transcription requests
         request_data = redis_client.dequeue()
         if request_data:
-            print(request_data)
             # Process the request
+            redis_client.set_status(
+                request_data['request_id'],
+                json.dumps({"status": "Processing transcription..."})
+            )
+
             result = process_transcription(request_data['audio_path'])
 
         
-        # Store the result
-        redis_client.set(
-            f"transcription_result:{request_data['request_id']}",
-            json.dumps(result)
-        )
-
-
+            # Store the result
+            redis_client.set_status(
+                request_data['request_id'],
+                json.dumps(result)
+            )
 
 if __name__ == "__main__":
     main() 
