@@ -50,7 +50,7 @@ class CloudinaryHandler:
             return url[:-4] + ".mp3"
         return url
     
-    def pull_audio_details(self, max_results: int = 10) -> Dict:
+    def pull_audio_details(self, max_results: int = 500) -> Dict:
         """
         Fetches video resources from Cloudinary and converts their URLs to MP3 format.
         
@@ -61,25 +61,29 @@ class CloudinaryHandler:
             A dictionary of Asset objects with modified MP3 URLs.
         """
         try:
-            resp = cloudinary.api.resources(resource_type="video", max_results=max_results)
             asset_dict = {}
 
             audio_dir = Path("static/audio")
             audio_dir.mkdir(parents=True, exist_ok=True)
-            
+
+            #TODO: add next cursor loop until asset_dict is filled with every url
+            resp = cloudinary.api.resources(resource_type="video",
+                                            max_results=max_results,
+                                            tags=True,
+                                            next_cursor=None)
+
+
             for resource in resp["resources"]:
                 filename = f"{resource['asset_id']}.mp3"
                 file_path = audio_dir / filename
-                
+
                 formatted_url = self._change_mp4_format(resource["secure_url"])
-                
+
                 asset_dict[resource["asset_id"]] = {
                     "public_id": resource["public_id"],
                     "asset_id": resource["asset_id"],
                     "secure_url": formatted_url,
                     "audio_path": file_path,
-                    "captions": None,
-                    "status": None
                 }
                 
             return asset_dict

@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import json
 import os
+
 from typing import Optional
 from api.handlers.cloudinary import CloudinaryHandler
-from services.redis_enqueue_handler import RedisEnqueue
+from services.redis_handler import RedisEnqueue
 from pathlib import Path
 
 app = FastAPI(title="Audio Transcription API")
@@ -38,10 +39,11 @@ async def root():
 async def list_videos():
     """List all available videos from Cloudinary."""
     try:
-        assets = cloudinary_handler.pull_audio_details()
+        assets = cloudinary_handler.pull_audio_details(next_cursor="04ad5fe5aa85f7c7124eddb3945094bd92936fdbb9874a67e6f7f1a9a23b70fb")
+
         if not assets:
             raise HTTPException(status_code=404, detail="No audio files found")
-        return {"assets": assets}
+        return assets
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -88,7 +90,7 @@ async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
                 status_code=400, 
                 detail="Audio file not downloaded. Please download first."
             )
-        # TODO: Implement actual transcription
+
         request_id = redis_client.enqueue(asset)
         return {
             "status": "asset queued",
@@ -113,17 +115,19 @@ async def get_transcription_status(request_id: str):
                 "message": "Transcription not in progress"
             }
 
-        """if result_json == "processing":
-            return {
-                "request_id": request_id,
-                "status": "processing",
-                "message": "Transcription in progress"
-            }"""
-
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/dequeue/transcription")
+async def get_next_transcription():
+    try:
+        result = redis_client.dequeue()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return result
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8000)

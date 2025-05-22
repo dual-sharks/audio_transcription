@@ -26,5 +26,32 @@ class RedisEnqueue():
 
         return request_id
 
+    def dequeue(self):
+        try:
+            response = self.redis_client.blpop('transcription_requests')
+        except Exception as e:
+            print(e)
+
+        return response
+
     def get_status(self, request_id):
+
+        #TODO: Implement getting transcript in these formats:
+        """
+        Contentful Sync Output
+         {
+            "audio_id": "abc123",
+            "cloudinary_url": "https://res.cloudinary.com/cloud-name/audio/example.mp3",
+            "transcript": "Full transcription text here"
+        }
+
+        Training Dataset Output
+        {
+            "audio_id": "abc123",
+            "transcript": "Full transcription text here",
+            “description”: “Full description text here”,
+            "tags": ["Romance", "Fantasy", "Love"]
+        }
+        """
+
         return self.redis_client.get(f"transcription_result:{request_id}")
