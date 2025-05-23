@@ -48,7 +48,8 @@ async def list_videos():
         return {
             "status": "success",
             "message": "URLs pulled successfully",
-            "assets": assets
+            "assets": assets["assets"],
+            "next_cursor": assets["next_cursor"]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -62,7 +63,7 @@ async def list_all_videos():
             raise HTTPException(status_code=404, detail="No audio files found")
         return {"status": "success",
                 "message": "All URLs pulled successfully",
-                "assets": assets["assets"]}
+                "assets": assets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -150,31 +151,35 @@ async def get_transcription_status(request_id: str):
 async def get_next_transcription():
     try:
         result = redis_client.dequeue()
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return result
+
+@app.post("/cloudinary/upload/transcript/{asset_id}")
+async def upload_transcript(asset_id: str):
+    try:
+        response = json.loads(redis_client.get_status(asset_id))
+        if response["status"] == "completed" and response["transcript"]:
+            cloudinary_handler.update_asset(response)
+            return {"status": "success",
+                    "message": "Successfully uploaded transcript"}
+        return {"status": "error",
+                "message": "contentful output not stored in redis"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/cloudinary/upload{asset_id}")
-async def upload_text(asset_id: str):
-    #cloudinary_handler
-    return {"status": "success", "message": "Upload functionality pending"}
 
 
 @app.get("/contentfuloutput/{asset_id}")
 async def get_contentful_output(asset_id: str):
     try:
         response = json.loads(redis_client.get_status(asset_id))
-        asset = response["asset"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    if response["status"] == "success" and response["text"]:
-        return {"status": response["status"],
-                "asset_id": asset["asset_id"],
-                "public_id": asset["public_id"],
-                "cloudinary_url": asset["url"],
-                "transcript": asset["text"]}
+    if response["status"] == "completed" and response["transcript"]:
+        return response
     else:
         return {"status": "error",
                 "message": "contentful output not stored in redis"}

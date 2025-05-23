@@ -22,10 +22,12 @@ def process_transcription(audio_details: dict) -> dict:
         result = model.transcribe(audio_details["audio_path"])
 
         return {
-            "status": "success",
-            "text": result["text"],
+            "status": "completed",
+            "asset_id": audio_details["asset_id"],
+            "public_id": audio_details["public_id"],
+            "cloudinary_url": audio_details["secure_url"],
+            "transcript": result["text"],
             "segments": result["segments"],
-            "asset": audio_details,
         }
     except Exception as e:
         return {
@@ -50,7 +52,7 @@ def listen_redis_queue():
         print(str(e))
 
 def set_response_details(audio_details: dict, result):
-    if result["status"] == "success":
+    if result["status"] == "completed":
         # Store the result
         redis_client.set_status(
             audio_details['asset_id'],

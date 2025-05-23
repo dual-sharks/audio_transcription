@@ -50,7 +50,8 @@ class CloudinaryHandler:
             return url[:-4] + ".mp3"
         return url
     
-    def pull_audio_details(self, max_results: int = 500,
+    def pull_audio_details(self,
+                           max_results: int = 500,
                            next_cursor: Optional[str] = None) -> Dict:
         """
         Fetches video resources from Cloudinary and converts their URLs to MP3 format.
@@ -86,7 +87,7 @@ class CloudinaryHandler:
                 }
                 
             return {"assets": asset_dict,
-                    "next_cursor": resp["next_cursor"]}
+                    "next_cursor": resp.get("next_cursor")}
         except CloudinaryError as e:
             print(f"Error fetching audio details: {e}")
             raise
@@ -94,16 +95,12 @@ class CloudinaryHandler:
     def pull_all_audio_details(self):
         all_assets: dict[str, dict] = {}
         next_cursor: str | None = None
-        max_tries = 30
-        current_tries = 0
         while True:
-            page = self.pull_audio_details(next_cursor)
+            page = self.pull_audio_details(next_cursor=next_cursor)
             all_assets.update(page["assets"])
             next_cursor = page.get("next_cursor")
-            current_tries += 1
-            if not next_cursor or current_tries >= max_tries:
+            if not next_cursor:
                 break
-
         return all_assets
 
     def download_audio(self, asset: Dict) -> bool:
@@ -136,7 +133,7 @@ class CloudinaryHandler:
             return False
 
     def update_asset(self, contentful_details: dict) -> bool:
-        if contentful_details["status"] == "success":
+        if contentful_details["status"] == "completed":
             cloudinary.api.update(contentful_details["public_id"],
                                   context={"transcript": contentful_details["transcript"]})
 
