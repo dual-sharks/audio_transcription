@@ -50,7 +50,8 @@ class CloudinaryHandler:
             return url[:-4] + ".mp3"
         return url
     
-    def pull_audio_details(self, max_results: int = 500) -> Dict:
+    def pull_audio_details(self, max_results: int = 500,
+                           next_cursor: Optional[str] = None) -> Dict:
         """
         Fetches video resources from Cloudinary and converts their URLs to MP3 format.
         
@@ -66,12 +67,10 @@ class CloudinaryHandler:
             audio_dir = Path("static/audio")
             audio_dir.mkdir(parents=True, exist_ok=True)
 
-            #TODO: add next cursor loop until asset_dict is filled with every url
             resp = cloudinary.api.resources(resource_type="video",
                                             max_results=max_results,
                                             tags=True,
-                                            next_cursor=None)
-
+                                            next_cursor=next_cursor)
 
             for resource in resp["resources"]:
                 filename = f"{resource['asset_id']}.mp3"
@@ -86,11 +85,27 @@ class CloudinaryHandler:
                     "audio_path": file_path,
                 }
                 
-            return asset_dict
+            return {"assets": asset_dict,
+                    "next_cursor": resp["next_cursor"]}
         except CloudinaryError as e:
             print(f"Error fetching audio details: {e}")
             raise
-    
+
+    def pull_all_audio_details(self):
+        all_assets: dict[str, dict] = {}
+        next_cursor: str | None = None
+        max_tries = 30
+        current_tries = 0
+        while True:
+            page = self.pull_audio_details(next_cursor)
+            all_assets.update(page["assets"])
+            next_cursor = page.get("next_cursor")
+            current_tries += 1
+            if not next_cursor or current_tries >= max_tries:
+                break
+
+        return all_assets
+
     def download_audio(self, asset: Dict) -> bool:
         """
         Downloads an MP3 file from a secure URL and saves it to the local audio directory.
@@ -119,6 +134,11 @@ class CloudinaryHandler:
             asset["status"] = None
             print(f"Error downloading audio: {e}")
             return False
+
+    def update_asset(self, contentful_details: dict) -> bool:
+        if contentful_details["status"] == "success":
+            cloudinary.api.update(contentful_details["public_id"],
+                                  context={"transcript": contentful_details["transcript"]})
 
     @classmethod
     def from_env(cls) -> 'CloudinaryHandler':

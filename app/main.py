@@ -5,8 +5,8 @@ import json
 import os
 
 from typing import Optional
-from api.handlers.cloudinary import CloudinaryHandler
-from services.redis_handler import RedisEnqueue
+from app.api.handlers.cloudinary import CloudinaryHandler
+from app.services.redis_handler import RedisEnqueue
 from pathlib import Path
 
 app = FastAPI(title="Audio Transcription API")
@@ -31,21 +31,41 @@ cloudinary_handler = CloudinaryHandler.from_env()
 # Initialize Redis handler
 redis_client = RedisEnqueue('localhost')
 
+
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "Audio Transcription API is running"}
+
 
 @app.get("/cloudinary/videos")
 async def list_videos():
     """List all available videos from Cloudinary."""
     try:
-        assets = cloudinary_handler.pull_audio_details(next_cursor="04ad5fe5aa85f7c7124eddb3945094bd92936fdbb9874a67e6f7f1a9a23b70fb")
+        assets = cloudinary_handler.pull_audio_details()
 
         if not assets:
             raise HTTPException(status_code=404, detail="No audio files found")
-        return assets
+        return {
+            "status": "success",
+            "message": "URLs pulled successfully",
+            "assets": assets
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/cloudinary/videos/all")
+async def list_all_videos():
+    try:
+        assets = cloudinary_handler.pull_all_audio_details()
+        if not assets:
+            raise HTTPException(status_code=404, detail="No audio files found")
+        return {"status": "success",
+                "message": "All URLs pulled successfully",
+                "assets": assets["assets"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/cloudinary/videos/{asset_id}/download")
 async def download_audio(asset_id: str):
@@ -65,12 +85,13 @@ async def download_audio(asset_id: str):
         return {
             "status": "success",
             "message": "Audio downloaded successfully",
-            "file_path": str(asset["audio_path"])
+            "asset": asset
         }
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/transcribe/{asset_id}")
 async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
@@ -92,16 +113,21 @@ async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
             )
 
         request_id = redis_client.enqueue(asset)
-        return {
-            "status": "asset queued",
-            "message": "Transcription functionality coming soon",
-            "request_id": request_id,
-            "file_path": asset["audio_path"]
+
+        message = {
+            "status": "queued",
+            "message": "asset is queued for transcription",
+            "asset": asset
         }
+
+        redis_client.set_status(request_id, json.dumps(message))
+
+        return message
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/transcription/{request_id}")
 async def get_transcription_status(request_id: str):
@@ -112,12 +138,13 @@ async def get_transcription_status(request_id: str):
             return {
                 "request_id": request_id,
                 "status": "Not Processing",
-                "message": "Transcription not in progress"
+                "message": "Transcription not in progress, nothing found"
             }
 
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/dequeue/transcription")
 async def get_next_transcription():
@@ -127,6 +154,31 @@ async def get_next_transcription():
         raise HTTPException(status_code=500, detail=str(e))
 
     return result
+
+
+@app.post("/cloudinary/upload{asset_id}")
+async def upload_text(asset_id: str):
+    #cloudinary_handler
+    return {"status": "success", "message": "Upload functionality pending"}
+
+
+@app.get("/contentfuloutput/{asset_id}")
+async def get_contentful_output(asset_id: str):
+    try:
+        response = json.loads(redis_client.get_status(asset_id))
+        asset = response["asset"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if response["status"] == "success" and response["text"]:
+        return {"status": response["status"],
+                "asset_id": asset["asset_id"],
+                "public_id": asset["public_id"],
+                "cloudinary_url": asset["url"],
+                "transcript": asset["text"]}
+    else:
+        return {"status": "error",
+                "message": "contentful output not stored in redis"}
+
 
 if __name__ == "__main__":
     import uvicorn

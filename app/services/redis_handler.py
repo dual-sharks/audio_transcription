@@ -55,3 +55,9 @@ class RedisEnqueue():
         """
 
         return self.redis_client.get(f"transcription_result:{request_id}")
+
+    def set_status(self, request_id, result):
+        self.redis_client.set(
+            f"transcription_result:{request_id}",
+            result
+        )

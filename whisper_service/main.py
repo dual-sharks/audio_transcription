@@ -15,15 +15,17 @@ model = whisper.load_model("base", device=DEVICE)
 redis_client = RedisDequeue("localhost")
 
 
-def process_transcription(audio_path: str) -> dict:
+def process_transcription(audio_details: dict) -> dict:
     """Process audio file with Whisper model"""
 
     try:
-        result = model.transcribe(audio_path)
+        result = model.transcribe(audio_details["audio_path"])
+
         return {
-            "status": "completed",
+            "status": "success",
             "text": result["text"],
-            "segments": result["segments"]
+            "segments": result["segments"],
+            "asset": audio_details,
         }
     except Exception as e:
         return {
@@ -35,21 +37,29 @@ def listen_redis_queue():
     try:
         response = redis_client.dequeue()
         if response is not None:
-            print(response)
             redis_client.set_status(
                 response['request_id'],
-                json.dumps({"status": "Processing transcription..."})
+                json.dumps({"status": "processing",
+                            "message": "Processing transcription",
+                            "asset": response})
             )
-            print(response)
-            result = process_transcription(response['audio_path'])
 
-            send_audio_details(response, result)
+            result = process_transcription(response)
+            set_response_details(response, result)
     except Exception as e:
         print(str(e))
 
-def send_audio_details(audio_details: dict, result):
-    # Store the result
-    print(audio_details['request_id'])
+def set_response_details(audio_details: dict, result):
+    if result["status"] == "success":
+        # Store the result
+        redis_client.set_status(
+            audio_details['asset_id'],
+            json.dumps(result)
+        )
+
+        result["message"] = f"Audio details stored at {audio_details['asset_id']} in redis"
+
+
     redis_client.set_status(
         audio_details['request_id'],
         json.dumps(result)
