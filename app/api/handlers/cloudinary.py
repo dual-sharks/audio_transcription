@@ -51,7 +51,7 @@ class CloudinaryHandler:
         return url
     
     def pull_audio_details(self,
-                           max_results: int = 500,
+                           max_results: int = 10,
                            next_cursor: Optional[str] = None) -> Dict:
         """
         Fetches video resources from Cloudinary and converts their URLs to MP3 format.
@@ -71,26 +71,33 @@ class CloudinaryHandler:
             resp = cloudinary.api.resources(resource_type="video",
                                             max_results=max_results,
                                             tags=True,
-                                            next_cursor=next_cursor)
+                                            next_cursor=next_cursor,
+                                            context=True,
+                                            metadata=True)
+            return {"assets": resp,
+                    "next_cursor": resp["next_cursor"]}
 
             for resource in resp["resources"]:
                 filename = f"{resource['asset_id']}.mp3"
                 file_path = audio_dir / filename
-
                 formatted_url = self._change_mp4_format(resource["secure_url"])
-
                 asset_dict[resource["asset_id"]] = {
                     "public_id": resource["public_id"],
                     "asset_id": resource["asset_id"],
                     "secure_url": formatted_url,
                     "audio_path": file_path,
+                    "context": resource["context"] if "context" in resource else None,
+                    "tags": resource["tags"] if "tags" in resource else None,
+                    "metadata": resource["metadata"] if "metadata" in resource else None
                 }
-                
+
             return {"assets": asset_dict,
                     "next_cursor": resp.get("next_cursor")}
         except CloudinaryError as e:
             print(f"Error fetching audio details: {e}")
             raise
+        except Exception as e:
+            print(f"Error fetching audio details: {e}")
 
     def pull_all_audio_details(self):
         all_assets: dict[str, dict] = {}
