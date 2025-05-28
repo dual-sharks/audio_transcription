@@ -5,9 +5,10 @@ import json
 import os
 
 from typing import Optional
-from api.handlers.cloudinary import CloudinaryHandler
-from services.redis_handler import RedisEnqueue
+from app.api.handlers.cloudinary import CloudinaryHandler
+from app.services.redis_handler import RedisEnqueue
 from pathlib import Path
+import asyncio
 
 app = FastAPI(title="Audio Transcription API")
 
@@ -38,27 +39,35 @@ async def root():
 
 
 @app.get("/cloudinary/videos")
-async def list_videos():
+async def list_videos(max_results: int = 50, next_cursor: Optional[str] = None):
     """List all available videos from Cloudinary."""
     try:
-        assets = cloudinary_handler.pull_audio_details()
+        assets = await asyncio.to_thread(
+            cloudinary_handler.pull_audio_details,
+            max_results=max_results,
+            next_cursor=next_cursor
+        )
 
         if not assets:
             raise HTTPException(status_code=404, detail="No audio files found")
         return {
             "status": "success",
             "message": "URLs pulled successfully",
-            "assets": assets["assets"],
-            "next_cursor": assets["next_cursor"]
+            "assets": assets.get("assets"),
+            "next_cursor": assets.get("next_cursor")
         }
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/cloudinary/videos/all")
-async def list_all_videos():
+async def list_all_videos(max_results: int = 500):
     try:
-        assets = cloudinary_handler.pull_all_audio_details()
+        assets = await asyncio.to_thread(
+            cloudinary_handler.pull_all_audio_details,
+            max_results
+        )
         if not assets:
             raise HTTPException(status_code=404, detail="No audio files found")
         return {"status": "success",
@@ -73,13 +82,17 @@ async def download_audio(asset_id: str):
     """Download a specific video by its asset ID."""
     try:
         # First get all assets
-        assets = cloudinary_handler.pull_audio_details()
+        #TODO: Make this better, take in object or url to download with path
+        assets = cloudinary_handler.pull_all_audio_details
         if asset_id not in assets:
             raise HTTPException(status_code=404, detail="Asset not found")
 
         asset = assets[asset_id]
         if not asset["audio_path"].exists():
-            success = cloudinary_handler.download_audio(asset)
+            success = asyncio.to_thread(
+                cloudinary_handler.download_audio,
+                asset
+            )
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to download audio")
 
@@ -121,7 +134,7 @@ async def transcribe_audio(asset_id: str, background_tasks: BackgroundTasks):
             "asset": asset
         }
 
-        redis_client.set_status(request_id, json.dumps(message))
+        background_tasks.add_task(redis_client.set_status, request_id, json.dumps(message))
 
         return message
     except HTTPException:

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import requests
 from typing import Optional, Dict
 
+
 class CloudinaryHandler:
     def __init__(self, cloud_name: str, api_key: str, api_secret: str):
         """
@@ -68,28 +69,43 @@ class CloudinaryHandler:
             audio_dir = Path("static/audio")
             audio_dir.mkdir(parents=True, exist_ok=True)
 
+            """resp = cloudinary.api.resources(resource_type="video",
+                                            max_results=max_results,
+                                            )"""
             resp = cloudinary.api.resources(resource_type="video",
                                             max_results=max_results,
                                             tags=True,
-                                            next_cursor=next_cursor,
                                             context=True,
-                                            metadata=True)
-            return {"assets": resp,
-                    "next_cursor": resp["next_cursor"]}
+                                            metadata=True,
+                                            next_cursor=next_cursor)
+            """return {"assets": resp,
+                    "next_cursor": resp["next_cursor"]}"""
 
             for resource in resp["resources"]:
-                filename = f"{resource['asset_id']}.mp3"
+                filename = f"{resource.get("asset_id")}.mp3"
                 file_path = audio_dir / filename
-                formatted_url = self._change_mp4_format(resource["secure_url"])
+                formatted_url = self._change_mp4_format(resource.get("secure_url"))
                 asset_dict[resource["asset_id"]] = {
-                    "public_id": resource["public_id"],
-                    "asset_id": resource["asset_id"],
+                    "public_id": resource.get("public_id"),
+                    "asset_id": resource.get("asset_id"),
                     "secure_url": formatted_url,
                     "audio_path": file_path,
-                    "context": resource["context"] if "context" in resource else None,
-                    "tags": resource["tags"] if "tags" in resource else None,
-                    "metadata": resource["metadata"] if "metadata" in resource else None
+                    "context": resource.get("context"),
+                    "tags": resource.get("tags"),
+                    "metadata": resource.get("metadata")
                 }
+                """tags = resource.get("tags")
+                context = resource.get("context")
+                metadata = resource.get("metadata")
+                description = resource.get("description")
+                if context:
+                    print(f"Context found in asset {resource.get("asset_id")}")
+                if tags and tags != "[]":
+                    print(f"Tags found in asset {resource.get("asset_id")}")
+                if metadata:
+                    print(f"Metadata found in asset {resource.get("asset_id")}")
+                if description:
+                    print(f"Description found in asset {resource.get("asset_id")}")"""
 
             return {"assets": asset_dict,
                     "next_cursor": resp.get("next_cursor")}
@@ -99,11 +115,11 @@ class CloudinaryHandler:
         except Exception as e:
             print(f"Error fetching audio details: {e}")
 
-    def pull_all_audio_details(self):
+    def pull_all_audio_details(self, max_results: int = 500):
         all_assets: dict[str, dict] = {}
         next_cursor: str | None = None
         while True:
-            page = self.pull_audio_details(next_cursor=next_cursor)
+            page = self.pull_audio_details(next_cursor=next_cursor, max_results=max_results)
             all_assets.update(page["assets"])
             next_cursor = page.get("next_cursor")
             if not next_cursor:
@@ -143,6 +159,7 @@ class CloudinaryHandler:
         if contentful_details["status"] == "completed":
             cloudinary.api.update(contentful_details["public_id"],
                                   context={"transcript": contentful_details["transcript"]})
+        return True
 
     @classmethod
     def from_env(cls) -> 'CloudinaryHandler':
