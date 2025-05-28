@@ -5,8 +5,8 @@ import json
 import os
 
 from typing import Optional
-from app.api.handlers.cloudinary import CloudinaryHandler
-from app.services.redis_handler import RedisEnqueue
+from api.handlers.cloudinary import CloudinaryHandler
+from services.redis_handler import RedisEnqueue
 from pathlib import Path
 import asyncio
 
