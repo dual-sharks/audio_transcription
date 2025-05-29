@@ -1,26 +1,19 @@
 FROM python:3.11-slim
 
+# 1. copy the dependency files into the WORKDIR -----------------------
 WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Poetry
-RUN pip install poetry
-
-# Copy poetry configuration files
 COPY pyproject.toml poetry.lock ./
 
-# Configure poetry to not create a virtual environment
+# 2. system deps ------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
+# 3. Poetry & deps ----------------------------------------------------
+RUN pip install --no-cache-dir poetry
 RUN poetry config virtualenvs.create false
+RUN poetry install --without dev --no-interaction --no-ansi
 
-# Install dependencies
-RUN poetry install --no-dev --no-interaction --no-ansi
+# 4. copy the rest of the service code (cache-friendly) --------------
+COPY whisper_service/ .
 
-# Copy service code
-COPY . .
-
-# Command to run the service
-CMD ["poetry", "run", "python", "main.py"] 
+CMD ["poetry", "run", "python", "main.py"]
